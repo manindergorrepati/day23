@@ -1,0 +1,134 @@
+1. PARTIAL FREE FORMAT FOR QUERY SUBFILE
+
+ FMT H  HKeywords++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
+        *************** Beginning of data ************************************* 
+0001.00 HDFTACTGRP(*NO)                                                         
+0002.00 FEMPLOYEE8 IF   E           K DISK                                      
+0003.00 FDEPTQRYD  CF   E             WORKSTN SFILE(QRYSFL:RRN)                 
+0004.00 DRRN              S              3P 0                                   
+0005.00 DgetQueryResult   pr                                                    
+0006.00 D                                2p 0                                   
+0007.00 C/FREE                                                                  
+0008.00                  *IN58=*ON;                                             
+0009.00                  DOW *IN03=*OFF;                                        
+0010.00                         WRITE FOOTER;                                   
+0011.00                         EXFMT QRYCTL;                                   
+0012.00                          if *in03;                                      
+0013.00                             leave;                                      
+0014.00                          endif;                                         
+0015.00                           getQueryResult(qdept); // procedure call      
+0016.00                         enddo;   
+0017.00                         *inlr=*on;                       
+0018.00  /END-FREE                                               
+0019.00 PgetQueryResult   b                                      
+0020.00 DgetQueryResult   PI                                     
+0021.00 Ddpt                             2p 0                    
+0022.00 c/FREE                                                   
+0023.00                     // clear subfile...& initialize rrn  
+0024.00                     *in59=*on;                           
+0025.00                     write qryctl;                        
+0026.00                     rrn=0;                                          
+0027.00                     *in59=*off;                                     
+0028.00                        setll dpt emprec;//position rec-ptr to the   
+0029.00                                        // 1st of key val            
+0030.00                        reade dpt emprec;                            
+0031.00                        dow not %eof;                                
+0032.00                            rrn+=1;                                  
+0033.00                            write qrysfl;                            
+0034.00                            reade dpt emprec;                        
+0035.00                        enddo;                                           
+0036.00                        *in57=*on;                                       
+0037.00                        if rrn=0;                                        
+0038.00                          *in57=*off;                                    
+0039.00                          msg='No such Dept or has no Employee';         
+0040.00                        endif;                                           
+0040.01  /end-free                                                              
+0041.00 PgetQueryResult   E                                                     
+        ****************** End of data **************************************** 
+                                                                                                                       
+2. PARTIAL FREE FORMAT PROGRAM TO DISPLY NAME 
+
+
+ FMT *   *. 1 ...+... 2 ...+... 3 ...+... 4 ...+... 5 ...+... 6 ...+... 7 ...+.
+        *************** Beginning of data *************************************
+0001.00                                                                        
+0002.00 FEMPLOYEE9 IF   E           K DISK                                     
+0003.00 C/FREE                                                                 
+0004.00            SETLL *LOVAL EMPREC;                                        
+0005.00            READ EMPREC;                                                
+0006.00            DSPLY NAME;                                                 
+0007.00            *INLR=*ON;                                                  
+0008.00  /END-FREE                                                             
+        ****************** End of data ****************************************
+
+3. Implemention for sorting of fields in subfile using embed sql and RTNCURLOC
+
+ FMT H  HKeywords++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
+        *************** Beginning of data ************************************* 
+0001.00 Hdftactgrp(*no)                                                         
+0002.00 FDYNASORTD CF   E             WORKSTN SFILE(EMPSFL:SORTRRN)             
+0003.00 DSORTRRN          S              3P 0 INZ(*ZEROS)                       
+0004.00 DRefillData       PR                                                    
+0005.00 D                                1a                                     
+0006.00 DOrdch            s              1A   inz('A')                          
+0007.00 C                   callp     RefillData(ORDCH)                         
+0008.00 C                   dow       not *in03                                 
+0009.00 C                   write     footer                                    
+0010.00 C                   exfmt     EMPCTL                                    
+0011.00 c   03              leave                                               
+0011.01 C                   EVAL      ORDCH=%SUBST(FLD:1:1)                     
+0012.00 C                   callp     RefillData(ORDCH)                         
+0013.00 C                   enddo                                               
+0014.00 C                   eval      *inlr=*on                                 
+0015.00 PRefillData       B    
+0025.00 c                   eval      OrdFld='NAME'   
+0026.00 C                                             
+0027.00 C                   WHEN      Ordch='C'       
+0028.00 C                   eval      OrdFld='DEPT'   
+0029.00 C                   WHEN      Ordch='D'       
+0030.00 c                   eval      OrdFld='GENDER' 
+0031.00 C                   WHEN      Ordch='E'       
+0032.00 C                   eval      OrdFld='DOJ'    
+0033.00 C                   WHEN      Ordch='F'  
+0034.00 c                   eval      OrdFld='SALARY' 
+0035.00 c                   other                     
+0036.00 c                   eval      OrdFld='EMPID'  
+0037.00 c                   endsl                     
+0038.00 c* subfile clear......                        
+0039.00 C                   eval      *in72=*off      
+0040.00 C                   write     empctl          
+0041.00 C                   eval      sortrrn=0       
+0041.01 C                   eval      *in72=*ON       
+0042.00 c* prepare sql statement dynamically                                 
+0043.00 c                   eval      stmt=%trim(stmt)+' '+%trim(ordFld)     
+0044.00 c/exec sql                                                           
+0045.00 c+ prepare s1 from :stmt                                             
+0046.00 c/end-exec                                                           
+0047.00 c/exec sql                                                           
+0048.00 c+ declare dynacur cursor for s1                                     
+0049.00 c/end-exec                                                           
+0050.00 c/exec sql      
+0052.00 c/end-exec                                                   
+0053.00 C                   dow       sqlcode=0                      
+0054.00 c/exec sql                                                   
+0055.00 c+ fetch dynacur into :empid,:name,:dept,:gender,:doj,       
+0056.00 c+ :salary                                                   
+0057.00 c/end-exec                                                   
+0058.00 c                   if        sqlcode=100 or sqlcode<0       
+0059.00 c                   leave                                    
+0060.00 c                   endif                     
+0061.00 c                   eval      sortrrn+=1      
+0062.00 c                   write     empsfl          
+0063.00 c                   enddo                     
+0064.00 c                   eval      *in71=*on       
+0065.00 c                   if        SORTrrn=0       
+0066.00 c                   eval      *in71=*off      
+0067.00 c                   endif                     
+0068.00 c/exec sql                                    
+0069.00 c+ close dynacur                                                        
+0070.00 c/end-exec                                                              
+0071.00 c                   return                                              
+0072.00 PRefillData       E                                                     
+        ****************** End of data **************************************** 
+                                                                                                                                          
+                                                                                                                                                                                                                                                                    
